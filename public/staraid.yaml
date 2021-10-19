@@ -1,0 +1,173 @@
+openapi: "3.0.0"
+info:
+  version: 1.9.0
+  title: StarAid Revolution API
+  description: This is the (beginnings of) the StarAid Revolution API. The aim of the API is to allow easy 3rd party integration with StarAid as an independent autoguider or plate solver (sky recognition). The api can be accessed from http://169.254.54.1/api (via USB) or http://192.168.55.1/api (WiFi). 
+  license:
+    name: MIT license
+servers:
+  - url: https://staraid.githib.io
+paths:
+  /guiding/status:
+    get:
+      summary: Get guiding status
+      description: Returns the latest guide info.
+        Typically refreshes 5 to 10 times per second. Returns immediately and can be called repeatedly and any time. _note:_ the returned object values may all be 0 or non-zero and static if guiding is disabled or not active. 
+      tags:
+        - Guiding
+      responses:
+        '200':
+          description: Returns the latest guide info.
+            Typically refreshes 5 to 10 times per second. Returns immediately and can be called repeatedly.
+          content:
+            application/json:    
+              schema:
+                $ref: "#/components/schemas/GuideFrame"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResult"
+
+  /guiding/start:
+    post:
+      summary: Start guiding operation
+      description: Attempts to start a guiding operation. Repeated calls have no side-effects. If *stop* operation is first issued, followed by a *start*, then StarAid will re-calibrate. 
+      tags:
+        - Guiding
+      responses:
+        '200':
+          description: Expected response to a valid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResult"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResult"
+  /guiding/stop:
+    post:
+      summary: Stop guiding operation, returns StarAid to idle. 
+      description: Stops guiding operation(s) and returns StarAid to idle.
+      tags:
+        - Guiding
+      responses:
+        '200':
+          description: Expected response to a valid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResult"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResult"                
+components:
+  schemas:
+    GuideFrame:
+      type: object
+      properties:
+        x:
+          type: number
+          format: double
+          example: 0.123
+          description: guiding error in x-pixel coordinate (raw sensor pixels)
+        y:
+          type: number
+          format: double
+          example: 0.123
+          description: guiding error in y-pixel coordinate (raw sensor pixels)
+        scaleFast:
+          type: number
+          format: float
+          example: 0.5
+          description: measure of seeing, fast time scale (<1s), in raw sensor pixels. 
+            For example, a value of 0.5 means roughly the guide-error will 
+            jump around +- half a pixel.
+        scaleSlow:
+          type: number
+          format: float
+          example: 0.5
+          description: measure of seeing, slow time scale (~5s), in raw sensor pixels. 
+            For example, a value of 0.5 means roughly the guide-error will 
+            jump around +- half a pixel.
+        eqRa:
+          type: number
+          format: double
+          example: 0.123
+          description: guiding error in right ascension (\"mount\" coordinates, local equatorial). 
+            Derived from the x,y with mount calibration applied, in raw sensor pixels.
+        eqDe:
+          type: number
+          format: double
+          example: 0.123
+          description: guiding error in declination (\"mount\" coordinates, local equatorial). 
+            Derived from the x,y with mount calibration applied, in raw sensor pixels.            
+        timestamp:
+          type: number
+          format: double
+          example: 600.765
+          description: timestamp of the guide frame, in seconds since power-on.           
+        imageTimestamp:
+          type: integer
+          format: int64
+          example: 87654345
+          description: timestamp of the source image frame where this guide frame is derived from. Timestamp in milliseconds.
+        guideRa:
+          type: number
+          format: double
+          example: 5.256
+          description: object guiding set-point, right ascension, raw pixel value, if active (0 otherwise)
+        guideDe:
+          type: number
+          format: double
+          example: 5.256
+          description: object guiding set-point, declination, raw pixel value, if active (0 otherwise)
+        setpointRa:
+          type: number
+          format: double
+          example: 5.256
+          description: object guiding set-point, right ascension, raw pixel value, if active (0 otherwise)
+        setpointDe:
+          type: number
+          format: double
+          example: 5.256
+          description: object guiding set-point, declination, raw pixel value, if active (0 otherwise)          
+        sourcesTotal:
+          type: number
+          format: int32
+          example: 20
+          description: Total number of guide stars in the local repository for this guide session. Note that the _repository_ of known stars refreshes periodically, to cope with variying observing conditions such as passing clouds when fewer stars might be visible (or more after clearing up)
+        sourcesUsed:
+          type: number
+          format: int32
+          example: 19
+          description: Number of guide stars used to determine this guide frame. Note that all individual guide stars are tracked seperately, and outliers are removed from the calculation. This can happen if the guide \"star\" happens to be a satellite or is displaced too far from what is predicted in this frame.
+        dithering:
+          type: boolean
+          example: true
+          description: Indicates wether a dithering action is in progress. Dithering changes the setpoints, and while moving to the new setpoint (dithering is true) the guide errors should be ignored.       
+    StatusResult:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          description: specific status information.
+          example: success
+    ErrorResult:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string 
+          description: If an error occurred, the reason.
+          example: resource not found
